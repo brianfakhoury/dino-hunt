@@ -2,16 +2,16 @@
 
 A fast-paced dinosaur hunting game built with Next.js and TypeScript. Face off against various species of dinosaurs in an intense survival shooter experience.
 
-<img src="public/dinosaurs/t-rex.png" alt="T-Rex" width="200"/>
+<img src="public/assets/dinosaurs/t-rex.png" alt="T-Rex" width="200"/>
 
 ## 🎮 Game Features
 
 - **Multiple Dinosaur Species**: Hunt different types of dinosaurs, each with unique characteristics:
-  - **Carnotaurus** <img src="public/dinosaurs/carnotaurus.png" alt="Carnotaurus" width="100"/> - Fast and agile
-  - **T-Rex** <img src="public/dinosaurs/t-rex.png" alt="T-Rex" width="100"/> - The mighty tyrant with high health
-  - **Allosaurus** <img src="public/dinosaurs/allosaurus.png" alt="Allosaurus" width="100"/> - Balanced predator
-  - **Triceratops** <img src="public/dinosaurs/triceratops.png" alt="Triceratops" width="100"/> - Tough herbivore
-  - **Stegosaurus** <img src="public/dinosaurs/stegosaurus.png" alt="Stegosaurus" width="100"/> - Defensive tank
+  - **Carnotaurus** <img src="public/assets/dinosaurs/carnotaurus.png" alt="Carnotaurus" width="100"/> - Fast and agile
+  - **T-Rex** <img src="public/assets/dinosaurs/t-rex.png" alt="T-Rex" width="100"/> - The mighty tyrant with high health
+  - **Allosaurus** <img src="public/assets/dinosaurs/allosaurus.png" alt="Allosaurus" width="100"/> - Balanced predator
+  - **Triceratops** <img src="public/assets/dinosaurs/triceratops.png" alt="Triceratops" width="100"/> - Tough herbivore
+  - **Stegosaurus** <img src="public/assets/dinosaurs/stegosaurus.png" alt="Stegosaurus" width="100"/> - Defensive tank
 
 - **Dynamic Gameplay**:
   - First-person shooter mechanics
