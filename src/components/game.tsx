@@ -42,7 +42,7 @@ const DINO_DATA = {
     width: 80,
     height: 60,
     imagePath: "/assets/dinosaurs/carnotaurus.png",
-    soundPath: "/assets/dinosaurs/carnataurus.m4a"
+    soundPath: "/assets/dinosaurs/carnataurus.m4a",
   },
   "T-Rex": {
     name: "T-Rex",
@@ -54,7 +54,7 @@ const DINO_DATA = {
     width: 100,
     height: 80,
     imagePath: "/assets/dinosaurs/t-rex.png",
-    soundPath: "/assets/dinosaurs/t-rex.m4a"
+    soundPath: "/assets/dinosaurs/t-rex.m4a",
   },
   Allosaurus: {
     name: "Allosaurus",
@@ -66,7 +66,7 @@ const DINO_DATA = {
     width: 90,
     height: 70,
     imagePath: "/assets/dinosaurs/allosaurus.png",
-    soundPath: "/assets/dinosaurs/allosaurus.m4a"
+    soundPath: "/assets/dinosaurs/allosaurus.m4a",
   },
   Triceratops: {
     name: "Triceratops",
@@ -78,7 +78,7 @@ const DINO_DATA = {
     width: 100,
     height: 70,
     imagePath: "/assets/dinosaurs/triceratops.png",
-    soundPath: "/assets/dinosaurs/triceratops.m4a"
+    soundPath: "/assets/dinosaurs/triceratops.m4a",
   },
   Stegosaurus: {
     name: "Stegosaurus",
@@ -90,7 +90,7 @@ const DINO_DATA = {
     width: 110,
     height: 60,
     imagePath: "/assets/dinosaurs/stegosaurus.png",
-    soundPath: "/assets/dinosaurs/stegosaurus.m4a"
+    soundPath: "/assets/dinosaurs/stegosaurus.m4a",
   },
 };
 
@@ -119,12 +119,17 @@ export default function Game() {
   const [score, setScore] = useState(0);
   const [gameStarted, setGameStarted] = useState(false);
   const [gameOver, setGameOver] = useState(false);
+
+  // Track crosshair
   const [mouse, setMouse] = useState({ x: 0, y: 0 });
 
   // Images
   const [dinoImgs, setDinoImgs] = useState<Record<string, HTMLImageElement>>({});
   const [gunImg, setGunImg] = useState<HTMLImageElement | null>(null);
   const [bgImg, setBgImg] = useState<HTMLImageElement | null>(null);
+
+  // Mobile detection helper
+  const isMobile = typeof window !== "undefined" && "ontouchstart" in window;
 
   // Load assets once
   useEffect(() => {
@@ -150,7 +155,7 @@ export default function Game() {
       for (const dino of Object.values(DINO_DATA)) {
         const img = new Image();
         img.src = dino.imagePath;
-        await new Promise((res) => (img.onload = res));
+        await new Promise(res => (img.onload = res));
         loaded[dino.name] = img;
       }
       setDinoImgs(loaded);
@@ -159,9 +164,11 @@ export default function Game() {
 
   // Spawn dinosaurs
   const spawnDinosaurs = useCallback(() => {
-    const minDist = 500,
-      maxDist = 1000,
-      count = 50;
+    const minDist = 500;
+    const maxDist = 1000;
+    // Fewer dinos for mobile to help performance
+    const count = isMobile ? 25 : 50;
+
     const newDinos: Dinosaur[] = [];
     const dinoTypes = Object.values(DINO_DATA);
 
@@ -178,67 +185,143 @@ export default function Game() {
       });
     }
     setDinosaurs(newDinos);
-  }, []);
+  }, [isMobile]);
 
-  // Handle pointer lock
+  // Handle pointer lock (desktop only)
   const handlePointerLockChange = useCallback(() => {
     const canvas = canvasRef.current;
-    if (canvas && document.pointerLockElement !== canvas && gameStarted) {
+    if (!canvas) return;
+    if (!isMobile && document.pointerLockElement !== canvas && gameStarted) {
+      // If we lose pointer lock on desktop, reset
       setGameStarted(false);
       setDinosaurs([]);
       setBullets([]);
       setScore(0);
     }
-  }, [gameStarted]);
+  }, [gameStarted, isMobile]);
 
-  // Handle mouse movement
+  // Mouse movement (desktop)
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
+      if (!gameStarted) return;
       const canvas = canvasRef.current;
-      if (!canvas || !gameStarted) return;
+      if (!canvas) return;
 
-      if (document.pointerLockElement === canvas) {
+      if (!isMobile && document.pointerLockElement === canvas) {
         // Relative movement
-        setMouse((prev) => ({
+        setMouse(prev => ({
           x: Math.max(0, Math.min(prev.x + e.movementX, canvas.width)),
           y: Math.max(0, Math.min(prev.y + e.movementY, canvas.height)),
         }));
       } else {
         // Absolute positioning
         const rect = canvas.getBoundingClientRect();
-        setMouse({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        setMouse({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top,
+        });
       }
     },
-    [gameStarted]
+    [gameStarted, isMobile]
   );
 
-  // Safely request pointer lock
-  const requestLock = useCallback(() => {
-    try {
-      canvasRef.current?.requestPointerLock();
-    } catch {
-      /* ignore errors */
-    }
-  }, []);
+  // Touch movement (mobile)
+  const handleTouchMove = useCallback(
+    (e: TouchEvent) => {
+      if (!gameStarted || !isMobile) return;
+      e.preventDefault();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
 
-  // Handle key inputs
+      const rect = canvas.getBoundingClientRect();
+      const touch = e.touches[0];
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
+
+      setMouse({ x, y });
+    },
+    [gameStarted, isMobile]
+  );
+
+  // Touch start -> update crosshair + shoot
+  const handleTouchStart = useCallback(
+    (e: TouchEvent) => {
+      if (!gameStarted || gameOver || !isMobile) return;
+      e.preventDefault();
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const { clientX, clientY } = e.touches[0];
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+
+      // Move crosshair right where the finger is
+      setMouse({ x, y });
+
+      // Shoot
+      const cw = canvas.width;
+      const ch = canvas.height;
+      const angle = Math.atan2(y - ch / 2, x - cw / 2);
+      soundSystem.current.play("shoot");
+      setBullets(bs => [
+        ...bs,
+        { id: Date.now(), x: 0, y: 0, angle, spawnTime: Date.now() },
+      ]);
+    },
+    [gameStarted, gameOver, isMobile]
+  );
+
+  // Safely request pointer lock (desktop only)
+  const requestLock = useCallback(() => {
+    if (!isMobile) {
+      try {
+        canvasRef.current?.requestPointerLock();
+      } catch {
+        /* ignore errors */
+      }
+    }
+  }, [isMobile]);
+
+  // Handle key inputs (desktop)
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      if (!gameStarted || gameOver || isMobile) {
+        // Let mobile rely on touch
+        return;
+      }
       const canvas = canvasRef.current;
       if (!canvas) return;
 
       // Fullscreen
       if (e.code === "KeyF") {
-        if (!document.fullscreenElement) canvas.requestFullscreen().catch(() => {});
-        else document.exitFullscreen().catch(() => {});
+        if (!document.fullscreenElement) {
+          canvas.requestFullscreen().catch(() => {});
+        } else {
+          document.exitFullscreen().catch(() => {});
+        }
       }
 
       // Start or restart
-      if (e.code === "Space" && !gameStarted && !gameOver) {
-        setGameStarted(true);
-        spawnDinosaurs();
-        requestLock();
+      if (e.code === "Space" && !gameOver) {
+        // If not started, start it
+        if (!gameStarted) {
+          setGameStarted(true);
+          spawnDinosaurs();
+          requestLock();
+        } else {
+          // Otherwise shoot
+          const cw = canvas.width;
+          const ch = canvas.height;
+          const angle = Math.atan2(mouse.y - ch / 2, mouse.x - cw / 2);
+          soundSystem.current.play("shoot");
+          setBullets(bs => [
+            ...bs,
+            { id: Date.now(), x: 0, y: 0, angle, spawnTime: Date.now() },
+          ]);
+        }
       }
+      // Restart
       if (e.code === "KeyR") {
         setGameOver(false);
         setScore(0);
@@ -248,20 +331,8 @@ export default function Game() {
         spawnDinosaurs();
         requestLock();
       }
-
-      // Shooting
-      if (e.code === "Space" && gameStarted && !gameOver) {
-        const cw = canvas.width,
-          ch = canvas.height,
-          angle = Math.atan2(mouse.y - ch / 2, mouse.x - cw / 2);
-        soundSystem.current.play("shoot");
-        setBullets((bs) => [
-          ...bs,
-          { id: Date.now(), x: 0, y: 0, angle, spawnTime: Date.now() },
-        ]);
-      }
     },
-    [gameStarted, gameOver, mouse, spawnDinosaurs, requestLock]
+    [gameStarted, gameOver, isMobile, mouse, spawnDinosaurs, requestLock]
   );
 
   // Game loop
@@ -277,8 +348,14 @@ export default function Game() {
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
       } else {
-        canvas.width = 800;
-        canvas.height = 600;
+        // Fixed dimensions for both mobile and desktop
+        if (isMobile) {
+          canvas.width = 400;  // Fixed width for mobile
+          canvas.height = 550; // Fixed height for mobile
+        } else {
+          canvas.width = 800;  // Desktop width
+          canvas.height = 600; // Desktop height
+        }
       }
     };
     resize();
@@ -297,13 +374,13 @@ export default function Game() {
           canvas.width / bgImg.width,
           canvas.height / bgImg.height
         );
-        const w = bgImg.width * scale,
-          h = bgImg.height * scale,
-          x = (canvas.width - w) / 2,
-          y = (canvas.height - h) / 2;
+        const w = bgImg.width * scale;
+        const h = bgImg.height * scale;
+        const x = (canvas.width - w) / 2;
+        const y = (canvas.height - h) / 2;
         ctx.drawImage(bgImg, x, y, w, h);
       } else {
-        ctx.fillStyle = "#000"; // solid black
+        ctx.fillStyle = "#000";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
@@ -323,16 +400,18 @@ export default function Game() {
         const { aliveDinos, activeBullets, increment } = checkCollisions(
           updatedDinos,
           updatedBullets,
-          (sound) => soundSystem.current.play(sound)
+          name => soundSystem.current.play(name)
         );
-        setScore((s) => s + increment);
+        if (increment > 0) setScore(s => s + increment);
 
         // Draw
-        aliveDinos.forEach((d) => drawDino(ctx, d, dinoImgs[d.type.name], cx, cy));
-        activeBullets.forEach((b) => drawBullet(ctx, b, cx, cy));
+        aliveDinos.forEach(d =>
+          drawDino(ctx, d, dinoImgs[d.type.name], cx, cy)
+        );
+        activeBullets.forEach(b => drawBullet(ctx, b, cx, cy));
 
         // Check if dinos reached player
-        if (aliveDinos.some((d) => Math.hypot(d.x, d.y) < d.type.size + 20)) {
+        if (aliveDinos.some(d => Math.hypot(d.x, d.y) < d.type.size + 20)) {
           setGameOver(true);
         }
 
@@ -355,12 +434,24 @@ export default function Game() {
     window.addEventListener("keydown", handleKeyDown);
     document.addEventListener("pointerlockchange", handlePointerLockChange);
 
+    // Touch listeners (mobile)
+    if (isMobile) {
+      canvas.addEventListener("touchmove", handleTouchMove, { passive: false });
+      canvas.addEventListener("touchstart", handleTouchStart, { passive: false });
+    }
+
     return () => {
       cancelAnimationFrame(animId);
       window.removeEventListener("resize", resize);
       canvas.removeEventListener("mousemove", handleMouseMove);
       window.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("pointerlockchange", handlePointerLockChange);
+
+      // Remove touch listeners
+      if (isMobile) {
+        canvas.removeEventListener("touchmove", handleTouchMove);
+        canvas.removeEventListener("touchstart", handleTouchStart);
+      }
     };
   }, [
     gameStarted,
@@ -375,6 +466,9 @@ export default function Game() {
     handleMouseMove,
     handleKeyDown,
     handlePointerLockChange,
+    handleTouchMove,
+    handleTouchStart,
+    isMobile,
   ]);
 
   // End screen
@@ -382,7 +476,11 @@ export default function Game() {
     const victory = dinosaurs.length === 0;
     return (
       <div className="text-center">
-        <h2 className={`text-3xl ${victory ? "text-green-500" : "text-red-500"} mb-4`}>
+        <h2
+          className={`text-3xl ${
+            victory ? "text-green-500" : "text-red-500"
+          } mb-4`}
+        >
           {victory ? "Victory!" : "Game Over!"}
         </h2>
         <p className="text-xl text-white mb-4">Final Score: {score}</p>
@@ -404,16 +502,19 @@ export default function Game() {
 
   // Intro overlay
   return (
-    <div className="relative text-white">
+    <div
+      className="relative text-white select-none"
+      style={{ userSelect: "none", overflow: "hidden" }}
+    >
       {!gameStarted && (
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center bg-black bg-opacity-50 p-3 rounded text-sm">
           <h2 className="text-2xl mb-4">Controls</h2>
           <ul className="text-lg space-y-2">
             <li>
-              <span className="font-bold">[SPACE]</span> - Start / Shoot
+              <span className="font-bold">[SPACE]</span> - Start / Shoot (desktop)
             </li>
             <li>
-              <span className="font-bold">[ESC]</span> - Exit game
+              <span className="font-bold">Tap</span> - Shoot (mobile)
             </li>
             <li>
               <span className="font-bold">[R]</span> - Restart game
@@ -434,7 +535,13 @@ export default function Game() {
           </button>
         </div>
       )}
-      <canvas ref={canvasRef} width={800} height={600} className="border border-white" />
+      <canvas
+        ref={canvasRef}
+        width={isMobile ? 400 : 800}
+        height={isMobile ? 550 : 600}
+        className="border border-white"
+        style={{ touchAction: "none" }}
+      />
     </div>
   );
 }
@@ -442,7 +549,7 @@ export default function Game() {
 // --- Helpers ---
 
 function updateDinosaurs(dinosaurs: Dinosaur[], dt: number) {
-  return dinosaurs.map((d) => {
+  return dinosaurs.map(d => {
     const angle = Math.atan2(-d.y, -d.x);
     const speed = d.type.speed * 60;
     return {
@@ -456,12 +563,12 @@ function updateDinosaurs(dinosaurs: Dinosaur[], dt: number) {
 function updateBullets(bullets: Bullet[], dt: number) {
   const speed = 600;
   return bullets
-    .map((b) => ({
+    .map(b => ({
       ...b,
       x: b.x + Math.cos(b.angle) * speed * dt,
       y: b.y + Math.sin(b.angle) * speed * dt,
     }))
-    .filter((b) => Math.hypot(b.x, b.y) < 5000);
+    .filter(b => Math.hypot(b.x, b.y) < 5000);
 }
 
 function checkCollisions(
@@ -470,8 +577,8 @@ function checkCollisions(
   playSound: (soundName: string) => void
 ) {
   let increment = 0;
-  bullets.forEach((b) => {
-    dinos.forEach((d) => {
+  bullets.forEach(b => {
+    dinos.forEach(d => {
       if (Math.hypot(d.x - b.x, d.y - b.y) < d.type.size) {
         d.health -= 25;
         b.hit = true;
@@ -482,12 +589,11 @@ function checkCollisions(
       }
     });
   });
-  const aliveDinos = dinos.filter((d) => d.health > 0);
-  const activeBullets = bullets.filter((b) => !b.hit);
+  const aliveDinos = dinos.filter(d => d.health > 0);
+  const activeBullets = bullets.filter(b => !b.hit);
   return { aliveDinos, activeBullets, increment };
 }
 
-// Drawing
 function drawCrosshair(ctx: CanvasRenderingContext2D, mouse: { x: number; y: number }) {
   ctx.save();
   ctx.strokeStyle = "#ff0000";
@@ -545,8 +651,8 @@ function drawDino(
 }
 
 function drawBullet(ctx: CanvasRenderingContext2D, b: Bullet, cx: number, cy: number) {
-  const sx = cx + b.x,
-    sy = cy + b.y;
+  const sx = cx + b.x;
+  const sy = cy + b.y;
   const age = (Date.now() - b.spawnTime) / 1000;
   const baseSize = 6 * (1 + Math.sin(age * 8) * 0.3);
 
