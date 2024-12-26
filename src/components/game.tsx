@@ -27,6 +27,7 @@ interface Bullet {
   y: number;
   angle: number;
   spawnTime: number;
+  hit?: boolean;
 }
 
 // Assets
@@ -473,7 +474,7 @@ function checkCollisions(
     dinos.forEach((d) => {
       if (Math.hypot(d.x - b.x, d.y - b.y) < d.type.size) {
         d.health -= 25;
-        (b as any).hit = true;
+        b.hit = true;
         if (d.health <= 0) {
           increment += d.type.points;
           playSound(`${d.type.name}-death`);
@@ -482,7 +483,7 @@ function checkCollisions(
     });
   });
   const aliveDinos = dinos.filter((d) => d.health > 0);
-  const activeBullets = bullets.filter((b) => !(b as any).hit);
+  const activeBullets = bullets.filter((b) => !b.hit);
   return { aliveDinos, activeBullets, increment };
 }
 
